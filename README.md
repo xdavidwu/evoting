@@ -15,7 +15,7 @@ Requirements:
 make containers
 ```
 
-This will build three containers, localhost/{evotingctl,evoting-server,evoting-client}.
+This will build three containers, {evotingctl,evoting-server,evoting-client}.
 
 To use podman instead of docker:
 
