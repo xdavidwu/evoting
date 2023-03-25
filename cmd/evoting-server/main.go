@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net"
@@ -19,6 +20,16 @@ type registrationServer struct {
 
 type eVotingServer struct {
 	pb.UnimplementedEVotingServer
+}
+
+func (eVotingServer) PreAuth(_ context.Context, name *pb.VoterName) (*pb.Challenge, error) {
+	log.Printf("PreAuth: %s", *name.Name)
+	return &pb.Challenge{Value: []byte{}}, nil
+}
+
+func (eVotingServer) Auth(_ context.Context, req *pb.AuthRequest) (*pb.AuthToken, error) {
+	log.Printf("Auth: %s", *req.Name.Name)
+	return &pb.AuthToken{Value: []byte{}}, nil
 }
 
 func main() {
