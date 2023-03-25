@@ -1,3 +1,5 @@
+DOCKER := docker
+
 all: evoting-server evoting-client evotingctl
 
 gen: proto/voting.proto
@@ -12,4 +14,9 @@ evoting-client: gen
 evotingctl: gen
 	go build ./cmd/evotingctl
 
-.PHONY: gen evoting-server evoting-client evotingctl
+containers:
+	$(DOCKER) build -f Containerfile -t evotingctl --target evotingctl .
+	$(DOCKER) build -f Containerfile -t evoting-server --target evoting-server .
+	$(DOCKER) build -f Containerfile -t evoting-client --target evoting-client .
+
+.PHONY: gen evoting-server evoting-client evotingctl containers
