@@ -13,14 +13,13 @@ import (
 
 var (
 	addr = flag.String("server", "localhost:1234", "server address")
-	help = `Usage: %s SUBCOMMAND
+	help = `Usage: %s [GLOBAL FLAGS]... SUBCOMMAND
 
-Available subcommands:
+Subcommands:
+  register NAME GROUP PUBLIC_KEY_FILE
+  unregister NAME
 
-register NAME GROUP PUBLIC_KEY_FILE
-
-unregister NAME
-
+Global flags:
 `
 )
 
