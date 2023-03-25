@@ -9,12 +9,12 @@ RUN env PATH="$PATH:$(go env GOPATH)/bin" make all -C evoting
 
 FROM alpine:$ALPINE as evotingctl
 COPY --from=build evoting/evotingctl /usr/local/bin
-CMD /usr/local/bin/evotingctl
+ENTRYPOINT ["/usr/local/bin/evotingctl"]
 
 FROM alpine:$ALPINE as evoting-client
 COPY --from=build evoting/evoting-client /usr/local/bin
-CMD /usr/local/bin/evoting-client
+ENTRYPOINT ["/usr/local/bin/evoting-client"]
 
 FROM alpine:$ALPINE as evoting-server
 COPY --from=build evoting/evoting-server /usr/local/bin
-CMD /usr/local/bin/evoting-server
+ENTRYPOINT ["/usr/local/bin/evoting-server"]
