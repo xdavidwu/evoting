@@ -20,17 +20,36 @@ var (
 	name	= flag.String("name", "foo", "Voter name")
 )
 
-func obtainToken(client pb.EVotingClient, _ []byte) (*pb.AuthToken, error) {
+type clientState struct {
+	client	pb.EVotingClient
+	key	[]byte
+	token	*pb.AuthToken
+}
+
+func obtainToken(s clientState) {
 	vname := &pb.VoterName{Name: name}
-	challenge, err := client.PreAuth(context.Background(), vname)
+	challenge, err := s.client.PreAuth(context.Background(), vname)
 	if err != nil {
-		return nil, err
+		log.Fatalf("fail to call PreAuth: %v", err)
 	}
 	// TODO sign
-	return client.Auth(context.Background(), &pb.AuthRequest{
+	token, err := s.client.Auth(context.Background(), &pb.AuthRequest{
 		Name: vname,
 		Response: &pb.Response{Value: challenge.Value},
 	})
+	s.token = token
+	if err != nil {
+		log.Fatalf("fail to call Auth: %v", err)
+	}
+}
+
+func retryWithAuth[T interface{}](s clientState, f func(clientState) T, retries func(T) bool) T {
+	v := f(s)
+	if retries(v) {
+		obtainToken(s)
+		return f(s)
+	}
+	return v
 }
 
 func shellHelp(out io.Writer) {
@@ -55,11 +74,11 @@ func main() {
 	}
 	defer connection.Close()
 	client := pb.NewEVotingClient(connection)
-
-	token, err := obtainToken(client, key)
-	if err != nil {
-		log.Fatalf("cannot authenticate: %v", err)
+	s := clientState{
+		client: client,
+		key: key,
 	}
+	obtainToken(s)
 
 	l, err := readline.New("evoting> ")
 	if err != nil {
@@ -94,45 +113,62 @@ func main() {
 			goto exit
 		case "create":
 			// TODO input
-			status, err := client.CreateElection(context.Background(), &pb.Election{
-				Token: token,
+			var status *pb.Status
+			retryWithAuth(s, func(s clientState) *pb.Status {
+				status, err = s.client.CreateElection(context.Background(), &pb.Election{
+					Token: s.token,
+				})
+				if err != nil {
+					log.Fatalf("cannot create election: %v", err)
+				}
+				return status
+			}, func(status *pb.Status) bool {
+				return *status.Code == pb.CreateElectionUnauthn
 			})
-			if err != nil {
-				log.Fatalf("cannot create election: %v", err)
+			if err = pb.CreateElectionToError(status); err != nil {
+				log.Printf("fail to create election: %v", err)
 			}
-			log.Printf("Create: %d", status.Code)
-
 		case "vote":
 			if len(args) != 3 {
 				log.Println("Invalid number of arguments for vote")
 				shellHelp(stdout)
 				break
 			}
-			status, err := client.CastVote(context.Background(), &pb.Vote{
-				ElectionName: &args[1],
-				ChoiceName: &args[2],
-				Token: token,
-			})
-			if err != nil {
-				log.Fatalf("cannot cast vote: %v", err)
-			}
-			log.Printf("Vote: %d", status.Code)
 
+			var status *pb.Status
+			retryWithAuth(s, func(s clientState) *pb.Status {
+				status, err := s.client.CastVote(context.Background(), &pb.Vote{
+					ElectionName: &args[1],
+					ChoiceName: &args[2],
+					Token: s.token,
+				})
+				if err != nil {
+					log.Fatalf("cannot cast vote: %v", err)
+				}
+				return status
+			}, func(status *pb.Status) bool {
+				return *status.Code == pb.CastVoteUnauthn
+			})
+			if err = pb.CastVoteToError(status); err != nil {
+				log.Printf("fail to cast vote: %v", err)
+			}
 		case "result":
 			if len(args) != 2 {
 				log.Println("Invalid number of arguments for result")
 				shellHelp(stdout)
 				break
 			}
-			result, err := client.GetResult(context.Background(), &pb.ElectionName{Name: &args[1]})
+			result, err := s.client.GetResult(context.Background(), &pb.ElectionName{Name: &args[1]})
 			if err != nil {
 				log.Fatalf("cannot query result: %v", err)
 			}
-			// TODO check status
+			result, err = pb.GetResultToError(result)
+			if err != nil {
+				log.Printf("failed to query result: %v", err)
+			}
 			for _, r := range(result.Counts) {
 				fmt.Printf("%s:\t%d", *r.ChoiceName, r.Count)
 			}
-
 		default:
 			shellHelp(stdout)
 		}
