@@ -61,8 +61,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("fail to register: %v", err)
 		}
-		log.Printf("RegisterVoter: %d", status.Code)
-
+		if err = pb.RegisterVoterToError(status); err != nil {
+			log.Fatalf("fail to register: %v", err)
+		}
 	case "unregister":
 		if len(args) != 2 {
 			flag.Usage()
@@ -72,8 +73,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("fail to unregister: %v", err)
 		}
-		log.Printf("UnregisterVoter: %d", status.Code)
-
+		if err = pb.UnregisterVoterToError(status); err != nil {
+			log.Fatalf("fail to unregister: %v", err)
+		}
 	default:
 		log.Fatalf("unknown subcommand %s", args[0])
 	}
