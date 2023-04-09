@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 	"strings"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -18,7 +19,7 @@ import (
 
 var (
 	addr	= flag.String("server", "localhost:5678", "Server address")
-	keyFile	= flag.String("key", store.ClientDataDir() + "/key", "Secret key file")
+	keyFile	= flag.String("key", path.Join(store.ClientDataDir(), "key"), "Secret key file")
 	name	= flag.String("name", "foo", "Voter name")
 )
 
