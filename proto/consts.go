@@ -1,26 +1,26 @@
 package proto
 
 const (
-	RegisterVoterSuccess	= 0
-	RegisterVoterExists	= 1
-	RegisterVoterUnknown	= 2
+	RegisterVoterSuccess	int32 = 0
+	RegisterVoterExists	int32 = 1
+	RegisterVoterUnknown	int32 = 2
 
-	UnregisterVoterSuccess	= 0
-	UnregisterVoterNotFound	= 1
-	UnregisterVoterUnknown	= 2
+	UnregisterVoterSuccess	int32 = 0
+	UnregisterVoterNotFound	int32 = 1
+	UnregisterVoterUnknown	int32 = 2
 
-	CreateElectionSuccess	= 0
-	CreateElectionUnauthn	= 1
-	CreateElectionNoSpec	= 2
-	CreateElectionUnknown	= 3
+	CreateElectionSuccess	int32 = 0
+	CreateElectionUnauthn	int32 = 1
+	CreateElectionNoSpec	int32 = 2
+	CreateElectionUnknown	int32 = 3
 
-	CastVoteSuccess		= 0
-	CastVoteUnauthn		= 1
-	CastVoteNotFound	= 2
-	CastVoteUnauthz		= 3
-	CastVoteAlready		= 4
+	CastVoteSuccess		int32 = 0
+	CastVoteUnauthn		int32 = 1
+	CastVoteNotFound	int32 = 2
+	CastVoteUnauthz		int32 = 3
+	CastVoteAlready		int32 = 4
 
-	GetResultSuccess	= 0
-	GetResultNotFound	= 1
-	GetResultNotYet		= 2
+	GetResultSuccess	int32 = 0
+	GetResultNotFound	int32 = 1
+	GetResultNotYet		int32 = 2
 )
