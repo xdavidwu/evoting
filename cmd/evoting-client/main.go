@@ -18,8 +18,23 @@ import (
 
 var (
 	addr	= flag.String("server", "localhost:5678", "Server address")
-	keyFile	= flag.String("key", store.ClientDataDir() + "/secret", "Secret key file")
+	keyFile	= flag.String("key", store.ClientDataDir() + "/key", "Secret key file")
 	name	= flag.String("name", "foo", "Voter name")
+)
+
+const (
+	usage	= `Usage: %s [FLAGS...] [keygen]
+
+keygen: Generate key pair and exit
+
+Flags:
+`
+	shellUsage	= `Commands:
+  create:             Create an election
+  vote ELECTION NAME: Vote for NAME on ELECTION
+  result ELECTION:    Query ELECTION result
+  exit, quit, q:      Exit
+`
 )
 
 type clientState struct {
@@ -57,16 +72,37 @@ func retryWithAuth[T interface{}](s clientState, f func(clientState) T, retries 
 	return v
 }
 
-func shellHelp(out io.Writer) {
-	fmt.Fprint(out, `Commands:
-  create:             Create an election
-  vote ELECTION NAME: Vote for NAME on ELECTION
-  result ELECTION:    Query ELECTION result
-  exit, quit, q:      Exit`)
-}
-
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), usage, os.Args[0])
+		flag.PrintDefaults()
+	}
 	flag.Parse()
+
+	args := flag.Args()
+	if len(args) == 1 && args[0] == "keygen" {
+		dataDir := store.ClientDataDir()
+		err := os.MkdirAll(dataDir, 0700)
+		if err != nil {
+			log.Printf("Unable to create data dir %s: %v", dataDir, err)
+		}
+
+		kp := sodium.MakeSignKP()
+
+		err = os.WriteFile(*keyFile, kp.SecretKey.Bytes, 0600)
+		if err != nil {
+			log.Fatalf("Unable to write secret key: %v", err)
+		}
+
+		pub := *keyFile + ".pub"
+		err = os.WriteFile(pub, kp.PublicKey.Bytes, 0600)
+		if err != nil {
+			log.Fatalf("Unable to write public key: %v", err)
+		}
+
+		log.Printf("Key pair generated at %s, %s", *keyFile, pub)
+		return
+	}
 
 	key, err := os.ReadFile(*keyFile)
 	if err != nil {
@@ -138,7 +174,7 @@ func main() {
 		case "vote":
 			if len(args) != 3 {
 				log.Println("Invalid number of arguments for vote")
-				shellHelp(stdout)
+				fmt.Fprint(stdout, shellUsage)
 				break
 			}
 
@@ -162,7 +198,7 @@ func main() {
 		case "result":
 			if len(args) != 2 {
 				log.Println("Invalid number of arguments for result")
-				shellHelp(stdout)
+				fmt.Fprint(stdout, shellUsage)
 				break
 			}
 			result, err := s.client.GetResult(context.Background(), &pb.ElectionName{Name: &args[1]})
@@ -177,7 +213,7 @@ func main() {
 				fmt.Printf("%s:\t%d", *r.ChoiceName, r.Count)
 			}
 		default:
-			shellHelp(stdout)
+			fmt.Fprint(stdout, shellUsage)
 		}
 	}
 exit:
