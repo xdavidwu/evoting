@@ -13,11 +13,12 @@ import (
 	"github.com/chzyer/readline"
 	"github.com/jamesruan/sodium"
 	pb "github.com/xdavidwu/evoting/proto"
+	"github.com/xdavidwu/evoting/store"
 )
 
 var (
 	addr	= flag.String("server", "localhost:5678", "Server address")
-	keyFile	= flag.String("key", "/dev/null", "Secret key file")
+	keyFile	= flag.String("key", store.ClientDataDir() + "/secret", "Secret key file")
 	name	= flag.String("name", "foo", "Voter name")
 )
 
