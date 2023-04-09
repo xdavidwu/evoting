@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"github.com/chzyer/readline"
+	"github.com/jamesruan/sodium"
 	pb "github.com/xdavidwu/evoting/proto"
 )
 
@@ -22,7 +23,7 @@ var (
 
 type clientState struct {
 	client	pb.EVotingClient
-	key	[]byte
+	key	sodium.SignSecretKey
 	token	*pb.AuthToken
 }
 
@@ -32,10 +33,13 @@ func obtainToken(s clientState) {
 	if err != nil {
 		log.Fatalf("fail to call PreAuth: %v", err)
 	}
-	// TODO sign
+
+	m := sodium.Bytes(challenge.Value)
+	sig := m.SignDetached(s.key)
+
 	token, err := s.client.Auth(context.Background(), &pb.AuthRequest{
 		Name: vname,
-		Response: &pb.Response{Value: challenge.Value},
+		Response: &pb.Response{Value: sig.Bytes},
 	})
 	s.token = token
 	if err != nil {
@@ -76,7 +80,9 @@ func main() {
 	client := pb.NewEVotingClient(connection)
 	s := clientState{
 		client: client,
-		key: key,
+		key: sodium.SignSecretKey{
+			Bytes: key,
+		},
 	}
 	obtainToken(s)
 
