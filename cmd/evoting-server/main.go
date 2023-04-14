@@ -2,13 +2,18 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"flag"
 	"log"
 	"net"
 	"os"
 	"path"
+	"github.com/jamesruan/sodium"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	pb "github.com/xdavidwu/evoting/proto"
 	"github.com/xdavidwu/evoting/store"
 	_ "modernc.org/sqlite"
@@ -20,7 +25,9 @@ var (
 )
 
 const (
-	dbSchema = `CREATE TABLE IF NOT EXISTS 'users' ('name' TEXT PRIMARY KEY, 'group' TEXT);`
+	dbSchema = `CREATE TABLE IF NOT EXISTS 'users' ('name' TEXT PRIMARY KEY, 'group' TEXT);
+CREATE TABLE IF NOT EXISTS 'challenges' ('id' INTEGER PRIMARY KEY AUTOINCREMENT, 'name' TEXT, 'value' TEXT);`
+	challengeBytes = 16
 )
 
 type registrationServer struct {
@@ -41,7 +48,7 @@ func (s registrationServer) RegisterVoter(_ context.Context, v *pb.Voter) (*pb.S
 }
 
 func (s registrationServer) UnregisterVoter(_ context.Context, v *pb.VoterName) (*pb.Status, error) {
-	rows, err := s.db.Query("SELECT 'group' FROM 'users' WHERE name = $1", v.Name)
+	rows, err := s.db.Query("SELECT [group] FROM 'users' WHERE name = $1", v.Name)
 	if err != nil {
 		panic(err)
 	}
@@ -64,14 +71,57 @@ type eVotingServer struct {
 	db *sql.DB
 }
 
-func (eVotingServer) PreAuth(_ context.Context, name *pb.VoterName) (*pb.Challenge, error) {
-	log.Printf("PreAuth: %s", *name.Name)
-	return &pb.Challenge{Value: []byte{}}, nil
+func (s eVotingServer) PreAuth(_ context.Context, name *pb.VoterName) (*pb.Challenge, error) {
+	rows, err := s.db.Query("SELECT 'group' FROM 'users' WHERE name = $1", name.Name)
+	if err != nil {
+		panic(err)
+	}
+	if !rows.Next() {
+		return nil, status.Error(codes.Unauthenticated, "voter not registered") 
+	}
+	rows.Close()
+
+	var c [challengeBytes]byte
+	_, err = rand.Read(c[:])
+	if err != nil {
+		panic(err)
+	}
+	var challenge [challengeBytes * 2]byte
+	hex.Encode(challenge[:], c[:])
+	_, err = s.db.Exec("INSERT INTO 'challenges' ('name', 'value') VALUES ($1, $2)", name.Name, string(challenge[:]))
+	if err != nil {
+		panic(err)
+	}
+
+	return &pb.Challenge{Value: challenge[:]}, nil
 }
 
-func (eVotingServer) Auth(_ context.Context, req *pb.AuthRequest) (*pb.AuthToken, error) {
-	log.Printf("Auth: %s", *req.Name.Name)
-	return &pb.AuthToken{Value: []byte{}}, nil
+func (s eVotingServer) Auth(_ context.Context, req *pb.AuthRequest) (*pb.AuthToken, error) {
+	b, err := os.ReadFile(path.Join(s.keysDir, *req.Name.Name))
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "voter not registered")
+	}
+	key := sodium.SignPublicKey{Bytes: sodium.Bytes(b)}
+	rows, err := s.db.Query("SELECT value FROM 'challenges' WHERE name = $1", req.Name.Name)
+	if err != nil {
+		panic(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var c string
+		err = rows.Scan(&c)
+		if err != nil {
+			panic(err)
+		}
+		m := sodium.Bytes([]byte(c))
+		err = m.SignVerifyDetached(sodium.Signature{Bytes: req.Response.Value}, key)
+		if err == nil {
+			return &pb.AuthToken{Value: []byte{}}, nil
+		}
+	}
+
+	return nil, status.Error(codes.Unauthenticated, "unknown signature")
 }
 
 func main() {
