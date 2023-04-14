@@ -5,11 +5,14 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"flag"
 	"log"
 	"net"
 	"os"
 	"path"
+	"time"
 	"github.com/jamesruan/sodium"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -69,6 +72,7 @@ type eVotingServer struct {
 	pb.UnimplementedEVotingServer
 	keysDir string
 	db *sql.DB
+	key sodium.SignKP
 }
 
 func (s eVotingServer) PreAuth(_ context.Context, name *pb.VoterName) (*pb.Challenge, error) {
@@ -96,6 +100,11 @@ func (s eVotingServer) PreAuth(_ context.Context, name *pb.VoterName) (*pb.Chall
 	return &pb.Challenge{Value: challenge[:]}, nil
 }
 
+type token struct {
+	Sub	string
+	Exp	time.Time
+}
+
 func (s eVotingServer) Auth(_ context.Context, req *pb.AuthRequest) (*pb.AuthToken, error) {
 	b, err := os.ReadFile(path.Join(s.keysDir, *req.Name.Name))
 	if err != nil {
@@ -117,11 +126,31 @@ func (s eVotingServer) Auth(_ context.Context, req *pb.AuthRequest) (*pb.AuthTok
 		m := sodium.Bytes([]byte(c))
 		err = m.SignVerifyDetached(sodium.Signature{Bytes: req.Response.Value}, key)
 		if err == nil {
-			return &pb.AuthToken{Value: []byte{}}, nil
+			j, _ := json.Marshal(token{Sub: *req.Name.Name, Exp: time.Now().Add(time.Hour)})
+			tok := sodium.Bytes(j)
+			token := tok.Sign(s.key.SecretKey)
+			return &pb.AuthToken{Value: token}, nil
 		}
 	}
 
 	return nil, status.Error(codes.Unauthenticated, "unknown signature")
+}
+
+func (s eVotingServer) verifyToken(t *pb.AuthToken) (string, error) {
+	m := sodium.Bytes(t.Value)
+	b, err := m.SignOpen(s.key.PublicKey)
+	if err != nil {
+		return "", err
+	}
+	var token token
+	err = json.Unmarshal(b, &token)
+	if err != nil {
+		return "", err
+	}
+	if time.Now().Before(token.Exp) {
+		return token.Sub, nil
+	}
+	return "", errors.New("token expired")
 }
 
 func main() {
@@ -137,6 +166,31 @@ func main() {
 	err = os.MkdirAll(keysDir, 0700)
 	if err != nil {
 		log.Fatalf("failed to create keys dir %s: %v", keysDir, err)
+	}
+
+	serverPrivPath := path.Join(dataDir, "key")
+	serverPubPath := serverPrivPath + ".pub"
+
+	serverPriv, errPriv := os.ReadFile(serverPrivPath)
+	serverPub, errPub := os.ReadFile(serverPrivPath)
+
+	kp := sodium.SignKP{
+		PublicKey: sodium.SignPublicKey{Bytes: serverPub},
+		SecretKey: sodium.SignSecretKey{Bytes: serverPriv},
+	}
+
+	if errPriv != nil || errPub != nil {
+		kp = sodium.MakeSignKP()
+
+		err = os.WriteFile(serverPrivPath, kp.SecretKey.Bytes, 0600)
+		if err != nil {
+			log.Fatalf("Unable to write secret key: %v", err)
+		}
+
+		err = os.WriteFile(serverPubPath, kp.PublicKey.Bytes, 0600)
+		if err != nil {
+			log.Fatalf("Unable to write public key: %v", err)
+		}
 	}
 
 	dbPath := path.Join(dataDir, "db.sqlite")
@@ -163,7 +217,7 @@ func main() {
 	voteServer := grpc.NewServer()
 
 	pb.RegisterRegistrationServer(registServer, &registrationServer{keysDir: keysDir, db: db})
-	pb.RegisterEVotingServer(voteServer, &eVotingServer{keysDir: keysDir, db: db})
+	pb.RegisterEVotingServer(voteServer, &eVotingServer{keysDir: keysDir, db: db, key: kp})
 
 	go registServer.Serve(registLn)
 	voteServer.Serve(voteLn)
