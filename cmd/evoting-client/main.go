@@ -44,7 +44,7 @@ type clientState struct {
 	token	*pb.AuthToken
 }
 
-func obtainToken(s clientState) {
+func obtainToken(s *clientState) {
 	vname := &pb.VoterName{Name: name}
 	challenge, err := s.client.PreAuth(context.Background(), vname)
 	if err != nil {
@@ -67,7 +67,7 @@ func obtainToken(s clientState) {
 func retryWithAuth[T interface{}](s clientState, f func(clientState) T, retries func(T) bool) T {
 	v := f(s)
 	if retries(v) {
-		obtainToken(s)
+		obtainToken(&s)
 		return f(s)
 	}
 	return v
@@ -122,7 +122,7 @@ func main() {
 			Bytes: key,
 		},
 	}
-	obtainToken(s)
+	obtainToken(&s)
 
 	l, err := readline.New("evoting> ")
 	if err != nil {
