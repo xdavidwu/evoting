@@ -42,3 +42,9 @@ make all
 ```
 
 This will produce {evotingctl,evoting-server,evoting-client} binaries.
+
+## Run
+
+The programs store their stats under `$XDG_DATA_DIR`.
+
+When running the containerized versions, be sure to mount a volume at `/root/.local`.
