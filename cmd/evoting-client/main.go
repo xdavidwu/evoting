@@ -272,7 +272,7 @@ func main() {
 				log.Printf("failed to query result: %v", err)
 			} else {
 				for _, r := range result.Counts {
-					fmt.Printf("%s:\t%d", *r.ChoiceName, r.Count)
+					fmt.Fprintf(stdout, "%s:\t%d\n", *r.ChoiceName, *r.Count)
 				}
 			}
 		default:
