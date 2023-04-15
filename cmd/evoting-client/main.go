@@ -275,6 +275,7 @@ func main() {
 					fmt.Fprintf(stdout, "%s:\t%d\n", *r.ChoiceName, *r.Count)
 				}
 			}
+		case "#":
 		default:
 			fmt.Fprint(stdout, shellUsage)
 		}
