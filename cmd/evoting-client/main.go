@@ -8,13 +8,16 @@ import (
 	"log"
 	"os"
 	"path"
+	"strconv"
 	"strings"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"time"
 	"github.com/chzyer/readline"
 	"github.com/jamesruan/sodium"
 	pb "github.com/xdavidwu/evoting/proto"
 	"github.com/xdavidwu/evoting/store"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -31,11 +34,12 @@ keygen: Generate key pair and exit
 Flags:
 `
 	shellUsage	= `Commands:
-  create:             Create an election
+  create NAME:             Create an election
   vote ELECTION NAME: Vote for NAME on ELECTION
   result ELECTION:    Query ELECTION result
   exit, quit, q:      Exit
 `
+	shellPrompt	= "evoiting> "
 )
 
 type clientState struct {
@@ -71,6 +75,18 @@ func retryWithAuth[T interface{}](s clientState, f func(clientState) T, retries 
 		return f(s)
 	}
 	return v
+}
+
+func ask(l *readline.Instance, prompt string) string {
+	l.HistoryDisable()
+	l.SetPrompt(prompt)
+	res, err := l.Readline()
+	if err != nil {
+		panic(err)
+	}
+	l.SetPrompt(shellPrompt)
+	l.HistoryEnable()
+	return strings.TrimSpace(res)
 }
 
 func main() {
@@ -124,7 +140,7 @@ func main() {
 	}
 	obtainToken(&s)
 
-	l, err := readline.New("evoting> ")
+	l, err := readline.New(shellPrompt)
 	if err != nil {
 		panic(err)
 	}
@@ -156,9 +172,56 @@ func main() {
 		case "q":
 			goto exit
 		case "create":
+			if len(args) != 2 {
+				log.Println("Invalid number of arguments for create")
+				fmt.Fprint(stdout, shellUsage)
+				break
+			}
+
 			// TODO input
+			var t time.Time
+			for {
+				timeStr := ask(l, "ending time (format as in " + time.DateTime + "): ")
+				t, err = time.ParseInLocation(time.DateTime, timeStr, time.Local)
+				if err == nil {
+					break
+				}
+			}
+
+			var ng int
+			for {
+				ngStr := ask(l, "number of groups to allow: ")
+				ng, err = strconv.Atoi(ngStr)
+				if err == nil {
+					break
+				}
+			}
+
+			groups := make([]string, ng)
+			for i := 0; i < ng; i++ {
+				groups[i] = ask(l, " group name: ")
+			}
+
+			var nc int
+			for {
+				ncStr := ask(l, "number of choices: ")
+				nc, err = strconv.Atoi(ncStr)
+				if err == nil {
+					break
+				}
+			}
+
+			choices := make([]string, nc)
+			for i := 0; i < nc; i++ {
+				choices[i] = ask(l, " choice: ")
+			}
+
 			status := retryWithAuth(s, func(s clientState) *pb.Status {
 				status, err := s.client.CreateElection(context.Background(), &pb.Election{
+					Name: &args[1],
+					Groups: groups,
+					Choices: choices,
+					EndDate: timestamppb.New(t),
 					Token: s.token,
 				})
 				if err != nil {
@@ -208,7 +271,7 @@ func main() {
 			if err != nil {
 				log.Printf("failed to query result: %v", err)
 			}
-			for _, r := range(result.Counts) {
+			for _, r := range result.Counts {
 				fmt.Printf("%s:\t%d", *r.ChoiceName, r.Count)
 			}
 		default:
