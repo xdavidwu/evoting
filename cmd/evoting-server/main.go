@@ -174,7 +174,7 @@ func main() {
 	serverPubPath := serverPrivPath + ".pub"
 
 	serverPriv, errPriv := os.ReadFile(serverPrivPath)
-	serverPub, errPub := os.ReadFile(serverPrivPath)
+	serverPub, errPub := os.ReadFile(serverPubPath)
 
 	kp := sodium.SignKP{
 		PublicKey: sodium.SignPublicKey{Bytes: serverPub},
