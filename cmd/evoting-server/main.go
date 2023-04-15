@@ -115,7 +115,6 @@ func (s eVotingServer) Auth(_ context.Context, req *pb.AuthRequest) (*pb.AuthTok
 	if err != nil {
 		panic(err)
 	}
-	defer rows.Close()
 
 	for rows.Next() {
 		var c string
@@ -126,12 +125,15 @@ func (s eVotingServer) Auth(_ context.Context, req *pb.AuthRequest) (*pb.AuthTok
 		m := sodium.Bytes([]byte(c))
 		err = m.SignVerifyDetached(sodium.Signature{Bytes: req.Response.Value}, key)
 		if err == nil {
+			rows.Close()
+			s.db.Exec("DELETE FROM 'challenges' WHERE value = $1", c)
 			j, _ := json.Marshal(token{Sub: *req.Name.Name, Exp: time.Now().Add(time.Hour)})
 			tok := sodium.Bytes(j)
 			token := tok.Sign(s.key.SecretKey)
 			return &pb.AuthToken{Value: token}, nil
 		}
 	}
+	rows.Close()
 
 	return nil, status.Error(codes.Unauthenticated, "unknown signature")
 }
