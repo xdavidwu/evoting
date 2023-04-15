@@ -29,7 +29,11 @@ var (
 
 const (
 	dbSchema = `CREATE TABLE IF NOT EXISTS 'users' ('name' TEXT PRIMARY KEY, 'group' TEXT);
-CREATE TABLE IF NOT EXISTS 'challenges' ('id' INTEGER PRIMARY KEY AUTOINCREMENT, 'name' TEXT, 'value' TEXT);`
+CREATE TABLE IF NOT EXISTS 'challenges' ('id' INTEGER PRIMARY KEY AUTOINCREMENT, 'name' TEXT, 'value' TEXT);
+CREATE TABLE IF NOT EXISTS 'elections' ('id' INTEGER PRIMARY KEY AUTOINCREMENT, 'name' TEXT UNIQUE, 'end_date' TEXT);
+CREATE TABLE IF NOT EXISTS 'election_groups' ('id' INTEGER PRIMARY KEY AUTOINCREMENT, 'election_id' INTEGER, 'group' TEXT, FOREIGN KEY('election_id') REFERENCES elections('id'));
+CREATE TABLE IF NOT EXISTS 'election_choices' ('id' INTEGER PRIMARY KEY AUTOINCREMENT, 'election_id' INTEGER, 'choice' TEXT, 'votes' INTEGER DEFAULT 0, FOREIGN KEY('election_id') REFERENCES elections('id'));
+CREATE TABLE IF NOT EXISTS 'election_voted' ('id' INTEGER PRIMARY KEY AUTOINCREMENT, 'election_id' INTEGER, 'user' TEXT, FOREIGN KEY('election_id') REFERENCES elections('id'))`
 	challengeBytes = 16
 )
 
@@ -153,6 +157,186 @@ func (s eVotingServer) verifyToken(t *pb.AuthToken) (string, error) {
 		return token.Sub, nil
 	}
 	return "", errors.New("token expired")
+}
+
+func (s eVotingServer) CreateElection(_ context.Context, e *pb.Election) (*pb.Status, error) {
+	_, err := s.verifyToken(e.Token)
+	if err != nil {
+		status := pb.CreateElectionUnauthn
+		return &pb.Status{Code: &status}, nil
+	}
+
+	if len(e.Choices) == 0 || len(e.Groups) == 0 {
+		status := pb.CreateElectionNoSpec
+		return &pb.Status{Code: &status}, nil
+	}
+
+	dateBytes, err := e.EndDate.AsTime().MarshalText()
+	if err != nil {
+		panic(err)
+	}
+	rows, err := s.db.Query("INSERT INTO 'elections' ('name', 'end_date') VALUES ($1, $2); SELECT last_insert_rowid()", e.Name, string(dateBytes))
+	if err != nil {
+		status := pb.CreateElectionUnknown
+		return &pb.Status{Code: &status}, nil
+	}
+	log.Print(rows.Next())
+	log.Print(*e.Name)
+	var id int64
+	rows.Scan(&id)
+	rows.Close()
+	log.Printf("id: %d", id)
+
+	for _, g := range(e.Groups) {
+		_, err = s.db.Exec("INSERT INTO 'election_groups' ('election_id', 'group') VALUES ($1, $2)", id, g)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	for _, c := range(e.Choices) {
+		_, err = s.db.Exec("INSERT INTO 'election_choices' ('election_id', 'choice') VALUES ($1, $2)", id, c)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	status := pb.CreateElectionSuccess
+	return &pb.Status{Code: &status}, nil
+}
+
+func (s eVotingServer) CastVote(_ context.Context, v *pb.Vote) (*pb.Status, error) {
+	user, err := s.verifyToken(v.Token)
+	if err != nil {
+		status := pb.CastVoteUnauthn
+		return &pb.Status{Code: &status}, nil
+	}
+
+	rows, err := s.db.Query("SELECT id, end_date FROM 'elections' WHERE name = $1", *v.ElectionName)
+	if err != nil {
+		panic(err)
+	}
+	if !rows.Next() {
+		rows.Close()
+		status := pb.CastVoteNotFound
+		return &pb.Status{Code: &status}, nil
+	}
+	var (
+		id int64
+		timeStr string
+	)
+	rows.Scan(&id, &timeStr)
+	rows.Close()
+	var endTime time.Time
+	err = endTime.UnmarshalText([]byte(timeStr))
+	if err != nil {
+		panic(err)
+	}
+	if endTime.Before(time.Now()) {
+		return nil, status.Error(codes.Unavailable, "vote ended")
+	}
+
+	rows, err = s.db.Query("SELECT [group] FROM 'users' WHERE name = $1", user)
+	if err != nil {
+		panic(err)
+	}
+	if !rows.Next() {
+		rows.Close()
+		status := pb.CastVoteUnauthn
+		return &pb.Status{Code: &status}, nil
+	}
+	var group string
+	rows.Scan(&group)
+	rows.Close()
+
+	rows, err = s.db.Query("SELECT [group] FROM 'election_groups' WHERE election_id = $1 AND [group] = $2", id, group)
+	if err != nil {
+		panic(err)
+	}
+	if !rows.Next() {
+		rows.Close()
+		status := pb.CastVoteUnauthz
+		return &pb.Status{Code: &status}, nil
+	}
+	rows.Close()
+
+	var choiceId int64
+	rows, err = s.db.Query("SELECT id FROM 'election_choices' WHERE election_id = $1 AND choice = $2", id, *v.ChoiceName)
+	if err != nil {
+		panic(err)
+	}
+	if !rows.Next() {
+		rows.Close()
+		return nil, status.Error(codes.NotFound, "no such choice")
+	}
+	rows.Scan(&choiceId)
+	rows.Close()
+
+	rows, err = s.db.Query("SELECT id FROM 'election_voted' WHERE election_id = $1 AND user = $2", id, user)
+	if err != nil {
+		panic(err)
+	}
+	if rows.Next() {
+		rows.Close()
+		status := pb.CastVoteAlready
+		return &pb.Status{Code: &status}, nil
+	}
+	rows.Close()
+
+	_, err = s.db.Exec(`UPDATE 'election_choices' SET votes = votes + 1 WHERE id = $1;
+INSERT INTO 'election_voted' ('election_id', 'user') VALUES ($2, $3)`, choiceId, id, user)
+	if err != nil {
+		panic(err)
+	}
+	status := pb.CastVoteSuccess
+	return &pb.Status{Code: &status}, nil
+}
+
+func (s eVotingServer) GetResult(_ context.Context, e *pb.ElectionName) (*pb.ElectionResult, error) {
+	rows, err := s.db.Query("SELECT id, end_date FROM 'elections' WHERE name = $1", *e.Name)
+	if err != nil {
+		panic(err)
+	}
+	if !rows.Next() {
+		rows.Close()
+		status := pb.GetResultNotFound
+		return &pb.ElectionResult{Status: &status}, nil
+	}
+
+	var (
+		id int64
+		timeStr string
+	)
+	rows.Scan(&id, &timeStr)
+	rows.Close()
+
+	var endTime time.Time
+	err = endTime.UnmarshalText([]byte(timeStr))
+	if err != nil {
+		panic(err)
+	}
+	if endTime.After(time.Now()) {
+		status := pb.GetResultNotYet
+		return &pb.ElectionResult{Status: &status}, nil
+	}
+
+	var res []*pb.VoteCount
+	rows, err = s.db.Query("SELECT choice, votes FROM 'election_choices' WHERE election_id = $1", id)
+	if err != nil {
+		panic(err)
+	}
+	for rows.Next() {
+		var (
+			choice string
+			votes int32
+		)
+		rows.Scan(&choice, &votes)
+		res = append(res, &pb.VoteCount{ChoiceName: &choice, Count: &votes})
+	}
+	log.Print(res)
+	rows.Close()
+	status := pb.GetResultSuccess
+	return &pb.ElectionResult{Status: &status, Counts: res}, nil
 }
 
 func main() {
