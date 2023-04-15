@@ -1,4 +1,4 @@
-ARG ALPINE=3.17
+ARG ALPINE=edge
 
 FROM alpine:$ALPINE as build
 RUN apk add make go protoc protobuf-dev libsodium-dev
