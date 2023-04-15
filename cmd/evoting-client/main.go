@@ -34,7 +34,7 @@ keygen: Generate key pair and exit
 Flags:
 `
 	shellUsage	= `Commands:
-  create NAME:             Create an election
+  create NAME:        Create an election
   vote ELECTION NAME: Vote for NAME on ELECTION
   result ELECTION:    Query ELECTION result
   exit, quit, q:      Exit
