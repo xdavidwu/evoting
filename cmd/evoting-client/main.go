@@ -270,9 +270,10 @@ func main() {
 			result, err = pb.GetResultToError(result)
 			if err != nil {
 				log.Printf("failed to query result: %v", err)
-			}
-			for _, r := range result.Counts {
-				fmt.Printf("%s:\t%d", *r.ChoiceName, r.Count)
+			} else {
+				for _, r := range result.Counts {
+					fmt.Printf("%s:\t%d", *r.ChoiceName, r.Count)
+				}
 			}
 		default:
 			fmt.Fprint(stdout, shellUsage)
