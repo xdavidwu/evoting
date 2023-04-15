@@ -39,7 +39,7 @@ Flags:
   result ELECTION:    Query ELECTION result
   exit, quit, q:      Exit
 `
-	shellPrompt	= "evoiting> "
+	shellPrompt	= "evoting> "
 )
 
 type clientState struct {
