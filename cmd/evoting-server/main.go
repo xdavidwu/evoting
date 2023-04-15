@@ -180,12 +180,9 @@ func (s eVotingServer) CreateElection(_ context.Context, e *pb.Election) (*pb.St
 		status := pb.CreateElectionUnknown
 		return &pb.Status{Code: &status}, nil
 	}
-	log.Print(rows.Next())
-	log.Print(*e.Name)
 	var id int64
 	rows.Scan(&id)
 	rows.Close()
-	log.Printf("id: %d", id)
 
 	for _, g := range(e.Groups) {
 		_, err = s.db.Exec("INSERT INTO 'election_groups' ('election_id', 'group') VALUES ($1, $2)", id, g)
