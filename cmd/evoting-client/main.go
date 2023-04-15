@@ -157,9 +157,8 @@ func main() {
 			goto exit
 		case "create":
 			// TODO input
-			var status *pb.Status
-			retryWithAuth(s, func(s clientState) *pb.Status {
-				status, err = s.client.CreateElection(context.Background(), &pb.Election{
+			status := retryWithAuth(s, func(s clientState) *pb.Status {
+				status, err := s.client.CreateElection(context.Background(), &pb.Election{
 					Token: s.token,
 				})
 				if err != nil {
@@ -179,8 +178,7 @@ func main() {
 				break
 			}
 
-			var status *pb.Status
-			retryWithAuth(s, func(s clientState) *pb.Status {
+			status := retryWithAuth(s, func(s clientState) *pb.Status {
 				status, err := s.client.CastVote(context.Background(), &pb.Vote{
 					ElectionName: &args[1],
 					ChoiceName: &args[2],
