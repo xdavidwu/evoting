@@ -369,3 +369,233 @@ var EVoting_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "proto/voting.proto",
 }
+
+// SyncClient is the client API for Sync service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type SyncClient interface {
+	Join(ctx context.Context, in *NodeIdentifier, opts ...grpc.CallOption) (*Dump, error)
+	NodesChanged(ctx context.Context, in *NodesList, opts ...grpc.CallOption) (*Empty, error)
+	Sql(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*Empty, error)
+	NewKey(ctx context.Context, in *Key, opts ...grpc.CallOption) (*Empty, error)
+	Ping(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
+}
+
+type syncClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewSyncClient(cc grpc.ClientConnInterface) SyncClient {
+	return &syncClient{cc}
+}
+
+func (c *syncClient) Join(ctx context.Context, in *NodeIdentifier, opts ...grpc.CallOption) (*Dump, error) {
+	out := new(Dump)
+	err := c.cc.Invoke(ctx, "/voting.Sync/Join", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *syncClient) NodesChanged(ctx context.Context, in *NodesList, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/voting.Sync/NodesChanged", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *syncClient) Sql(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/voting.Sync/Sql", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *syncClient) NewKey(ctx context.Context, in *Key, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/voting.Sync/NewKey", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *syncClient) Ping(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/voting.Sync/Ping", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// SyncServer is the server API for Sync service.
+// All implementations must embed UnimplementedSyncServer
+// for forward compatibility
+type SyncServer interface {
+	Join(context.Context, *NodeIdentifier) (*Dump, error)
+	NodesChanged(context.Context, *NodesList) (*Empty, error)
+	Sql(context.Context, *SqlRequest) (*Empty, error)
+	NewKey(context.Context, *Key) (*Empty, error)
+	Ping(context.Context, *Empty) (*Empty, error)
+	mustEmbedUnimplementedSyncServer()
+}
+
+// UnimplementedSyncServer must be embedded to have forward compatible implementations.
+type UnimplementedSyncServer struct {
+}
+
+func (UnimplementedSyncServer) Join(context.Context, *NodeIdentifier) (*Dump, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Join not implemented")
+}
+func (UnimplementedSyncServer) NodesChanged(context.Context, *NodesList) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NodesChanged not implemented")
+}
+func (UnimplementedSyncServer) Sql(context.Context, *SqlRequest) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Sql not implemented")
+}
+func (UnimplementedSyncServer) NewKey(context.Context, *Key) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NewKey not implemented")
+}
+func (UnimplementedSyncServer) Ping(context.Context, *Empty) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
+}
+func (UnimplementedSyncServer) mustEmbedUnimplementedSyncServer() {}
+
+// UnsafeSyncServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to SyncServer will
+// result in compilation errors.
+type UnsafeSyncServer interface {
+	mustEmbedUnimplementedSyncServer()
+}
+
+func RegisterSyncServer(s grpc.ServiceRegistrar, srv SyncServer) {
+	s.RegisterService(&Sync_ServiceDesc, srv)
+}
+
+func _Sync_Join_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeIdentifier)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SyncServer).Join(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/voting.Sync/Join",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SyncServer).Join(ctx, req.(*NodeIdentifier))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Sync_NodesChanged_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodesList)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SyncServer).NodesChanged(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/voting.Sync/NodesChanged",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SyncServer).NodesChanged(ctx, req.(*NodesList))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Sync_Sql_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SqlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SyncServer).Sql(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/voting.Sync/Sql",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SyncServer).Sql(ctx, req.(*SqlRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Sync_NewKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Key)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SyncServer).NewKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/voting.Sync/NewKey",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SyncServer).NewKey(ctx, req.(*Key))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Sync_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SyncServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/voting.Sync/Ping",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SyncServer).Ping(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Sync_ServiceDesc is the grpc.ServiceDesc for Sync service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Sync_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "voting.Sync",
+	HandlerType: (*SyncServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Join",
+			Handler:    _Sync_Join_Handler,
+		},
+		{
+			MethodName: "NodesChanged",
+			Handler:    _Sync_NodesChanged_Handler,
+		},
+		{
+			MethodName: "Sql",
+			Handler:    _Sync_Sql_Handler,
+		},
+		{
+			MethodName: "NewKey",
+			Handler:    _Sync_NewKey_Handler,
+		},
+		{
+			MethodName: "Ping",
+			Handler:    _Sync_Ping_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/voting.proto",
+}

@@ -77,3 +77,38 @@ message ElectionResult {
 	required int32 status = 1;
 	repeated VoteCount counts = 2;
 }
+
+service Sync {
+	rpc Join(NodeIdentifier) returns (Dump);
+	rpc NodesChanged(NodesList) returns (Empty);
+	rpc Sql(SqlRequest) returns (Empty);
+	rpc NewKey(Key) returns (Empty);
+	rpc Ping(Empty) returns (Empty);
+}
+
+message Empty {}
+
+message NodesList {
+	required NodeIdentifier primary = 1;
+	repeated NodeIdentifier nodes = 2;
+}
+
+message NodeIdentifier {
+	required string address = 1;
+}
+
+message Key {
+	required string name = 1;
+	required bytes key = 2;
+}
+
+message Dump {
+	required string content = 1;
+	repeated Key keys = 2;
+	required bytes serverPub = 3;
+	required bytes serverPriv = 4;
+}
+
+message SqlRequest {
+	required string command = 1;
+}

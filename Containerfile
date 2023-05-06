@@ -17,6 +17,6 @@ COPY --from=build evoting/evoting-client /usr/local/bin
 ENTRYPOINT ["/usr/local/bin/evoting-client"]
 
 FROM alpine:$ALPINE as evoting-server
-RUN apk add libsodium
+RUN apk add libsodium sqlite
 COPY --from=build evoting/evoting-server /usr/local/bin
 ENTRYPOINT ["/usr/local/bin/evoting-server"]
